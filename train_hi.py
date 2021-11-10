@@ -26,10 +26,10 @@ from tqdm import tqdm
 from keras.models import load_model
 import matplotlib.pyplot as plt
 
-questions = open('/content/cleaned_questions_hi.txt', 'rb').read().decode('utf-8').splitlines()
-answers = open('/content/cleaned_answers_hi.txt','rb').read().decode('utf-8').splitlines()
-image_id = open('/content/cleaned_image_id_hi.txt','rb').read().decode('utf-8').splitlines()
-vgg_path = "/content/coco/vgg_feats.mat"
+questions = open('/home3/181ee103/it_project/hi/cleaned_questions_hi.txt', 'rb').read().decode('utf-8').splitlines()
+answers = open('/home3/181ee103/it_project/hi/cleaned_answers_hi.txt','rb').read().decode('utf-8').splitlines()
+image_id = open('/home3/181ee103/it_project/hi/cleaned_image_id_hi.txt','rb').read().decode('utf-8').splitlines()
+vgg_path = "/home3/181ee103/coco/vgg_feats.mat"
 
 print("Data Successfully Loaded ")
 print("Total number of Questions are {} and Answers are {}".format(len(questions), len(answers)))
@@ -39,7 +39,7 @@ print(questions[0])
 print(answers[0])
 print(image_id[0])
 
-nlp = fasttext.load_model('/content/indicnlp.ft.hi.300.bin')
+nlp = fasttext.load_model('/home3/181ee103/indicnlp.ft.hi.300.bin')
 
 vgg = scipy.io.loadmat(vgg_path)
 features = vgg['feats']
@@ -61,14 +61,14 @@ def freq_answers(questions, answers, image_id, upper_lim):
             new_images_train.append(img)
     return (new_questions_train, new_answers_train, new_images_train)
 	
-upper_lim = 2000
+upper_lim = 1000
 questions, answers, image_id = freq_answers(questions, answers, image_id, upper_lim)
 questions, answers, image_id = (list(t) for t in zip(*sorted(zip(questions, answers, image_id))))
 print(len(questions), len(answers),len(image_id))
 
 le = LabelEncoder()
 le.fit(answers)
-pickle.dump(le, open('/content/label_encoder_lstm.pkl','wb'))
+pickle.dump(le, open('/home3/181ee103/label_encoder_lstm.pkl','wb'))
 
 batch_size               =      512
 img_dim                  =     4096
@@ -78,9 +78,9 @@ num_hidden_nodes_lstm    =      512
 num_layers_lstm          =        5
 dropout                  =       0.5
 activation_mlp           =     'tanh'
-num_epochs = 30
+num_epochs = 100
 
-img_ids = open('/content/coco_vgg_IDMap.txt','rb').read().decode('utf-8').splitlines()
+img_ids = open('/home3/181ee103/it_project/hi/coco_vgg_IDMap.txt','rb').read().decode('utf-8').splitlines()
 id_map = dict()
 for ids in img_ids:
     id_split = ids.split()
@@ -179,11 +179,11 @@ for k in range(num_epochs):
         progbar.add(batch_size, values=[('train loss', loss)])
         losses.append(loss)
 
-model.save("hi_baseline.h5")
-plt.plot(losses)
-plt.show()
+model.save("/home3/181ee103/hi_baseline.h5")
+#plt.plot(losses)
+#plt.show()
 
-label_encoder = pickle.load(open('/content/label_encoder_lstm.pkl','rb'))
+label_encoder = pickle.load(open('/home3/181ee103/label_encoder_lstm.pkl','rb'))
 
 y_pred = []
 batch_size = 512 
@@ -203,7 +203,7 @@ for qu_batch,an_batch,im_batch in tqdm(zip(grouped(test_questions, batch_size,
 
 import pickle
 
-with open('hi_predictions.pkl', 'wb', encoding = "utf8") as f:
+with open('/home3/181ee103/hi_predictions.pkl', 'wb', encoding = "utf8") as f:
     pickle.dump(y_pred, f)
 
 #with open('hi_predictions.pkl', 'rb', encoding = "utf8") as f:
@@ -226,3 +226,6 @@ for pred, truth, ques, img in zip(y_pred, test_answers, test_questions, test_ima
     total +=1
     
 print ("Accuracy: ", round((correct_val/total)*100,2))
+
+with open("/home3/181ee103/hi_baseline_acc.txt", "w") as f:
+    f.write("%s", str(round((correct_val/total)*100,2)))
