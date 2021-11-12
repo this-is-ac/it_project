@@ -1,11 +1,8 @@
 import numpy as np
-import pandas as pd
 import warnings
 warnings.filterwarnings("ignore")
 
-import spacy
 import scipy.io
-import gc
 from sklearn.preprocessing import LabelEncoder
 import pickle
 import fasttext
@@ -25,6 +22,10 @@ from itertools import zip_longest
 from tqdm import tqdm
 from keras.models import load_model
 import matplotlib.pyplot as plt
+
+import wandb
+
+wandb.init(project="it_project")
 
 questions = open('/home3/181ee103/it_project/hi/cleaned_questions_hi.txt', 'rb').read().decode('utf-8').splitlines()
 answers = open('/home3/181ee103/it_project/hi/cleaned_answers_hi.txt','rb').read().decode('utf-8').splitlines()
@@ -68,7 +69,7 @@ print(len(questions), len(answers),len(image_id))
 
 le = LabelEncoder()
 le.fit(answers)
-pickle.dump(le, open('/home3/181ee103/label_encoder_lstm.pkl','wb'))
+pickle.dump(le, open('/home3/181ee103/label_encoder_hi_baseline.pkl','wb'))
 
 batch_size               =      512
 img_dim                  =     4096
@@ -163,6 +164,13 @@ print("Total number of training samples {} and total number of test samples {} "
 import tensorflow as tf
 tf.config.run_functions_eagerly(True)
 
+wandb.config = {
+  "learning_rate": 0.001,
+  "epochs": num_epochs,
+  "batch_size": batch_size,
+  "language": "hi"
+}
+
 losses = []
 
 for k in range(num_epochs):
@@ -178,12 +186,14 @@ for k in range(num_epochs):
         loss = model.train_on_batch(({'sentence_input' : X_ques_batch, 'image_input' : X_img_batch}), Y_batch)
         progbar.add(batch_size, values=[('train loss', loss)])
         losses.append(loss)
+        wandb.log({"loss": loss})
+    wandb.log({"Epoch":k+1})
 
 model.save("/home3/181ee103/hi_baseline.h5")
 #plt.plot(losses)
 #plt.show()
 
-label_encoder = pickle.load(open('/home3/181ee103/label_encoder_lstm.pkl','rb'))
+label_encoder = pickle.load(open('/home3/181ee103/label_encoder_hi_baseline.pkl','rb'))
 
 y_pred = []
 batch_size = 512 
@@ -203,7 +213,7 @@ for qu_batch,an_batch,im_batch in tqdm(zip(grouped(test_questions, batch_size,
 
 import pickle
 
-with open('/home3/181ee103/hi_predictions.pkl', 'wb', encoding = "utf8") as f:
+with open('/home3/181ee103/hi_baseline_predictions.pkl', 'wb', encoding = "utf8") as f:
     pickle.dump(y_pred, f)
 
 #with open('hi_predictions.pkl', 'rb', encoding = "utf8") as f:
@@ -227,5 +237,7 @@ for pred, truth, ques, img in zip(y_pred, test_answers, test_questions, test_ima
     
 print ("Accuracy: ", round((correct_val/total)*100,2))
 
+wandb.log({"Accuracy":round((correct_val/total)*100,5)})
+
 with open("/home3/181ee103/hi_baseline_acc.txt", "w") as f:
-    f.write("%s", str(round((correct_val/total)*100,2)))
+    f.write("%s", str(round((correct_val/total)*100,5)))
