@@ -17,7 +17,7 @@ echo $PBS_JOBID
 #cat $PBS_NODEFILE
 echo "==============================="
 cd $PBS_O_WORKDIR
-export WANDB_API_KEY=afe1eb36cf1d27229ac6f273de34aee6d3955a73
+export WANDB_API_KEY=
 #job
 #singularity exec --nv /home3/181ee103/vqa_image python3 train_hi.py
 unset WANDB_API_KEY
