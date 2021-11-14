@@ -6,6 +6,8 @@ import scipy.io
 from sklearn.preprocessing import LabelEncoder
 import pickle
 import fasttext
+
+from tensorflow import keras
 from keras.models import Sequential
 from keras.layers.core import Dense, Dropout, Activation, Reshape
 from keras import Input
@@ -21,14 +23,10 @@ from itertools import zip_longest
 from tqdm import tqdm
 from keras.models import load_model
 import matplotlib.pyplot as plt
-from progressbar import Bar, ETA, Percentage, ProgressBar
-import wandb
 
-wandb.init(project="it_project")
-
-questions = open('/home3/181ee103/it_project/baseline/ml/cleaned_questions_ml.txt', 'rb').read().decode('utf-8').splitlines()
-answers = open('/home3/181ee103/it_project/baseline/ml/cleaned_answers_ml.txt','rb').read().decode('utf-8').splitlines()
-image_id = open('/home3/181ee103/it_project/baseline/ml/cleaned_image_id_ml.txt','rb').read().decode('utf-8').splitlines()
+questions = open('/home3/181ee103/it_project/baseline/ta/cleaned_questions_ta.txt', 'rb').read().decode('utf-8').splitlines()
+answers = open('/home3/181ee103/it_project/baseline/ta/cleaned_answers_ta.txt','rb').read().decode('utf-8').splitlines()
+image_id = open('/home3/181ee103/it_project/baseline/ta/cleaned_image_id_ta.txt','rb').read().decode('utf-8').splitlines()
 vgg_path = "/home3/181ee103/coco/vgg_feats.mat"
 
 print("Data Successfully Loaded ")
@@ -39,13 +37,10 @@ print(questions[0])
 print(answers[0])
 print(image_id[0])
 
+nlp = fasttext.load_model('/home3/181ee103/indicnlp.ft.ta.300.bin')
+
 vgg = scipy.io.loadmat(vgg_path)
 features = vgg['feats']
-
-from transformers import AutoModel, AutoTokenizer
-
-indic_tokenizer = AutoTokenizer.from_pretrained("ai4bharat/indic-bert")
-indic_model = AutoModel.from_pretrained("ai4bharat/indic-bert")
 
 def freq_answers(questions, answers, image_id, upper_lim):
     freq_ans = defaultdict(int)
@@ -64,18 +59,14 @@ def freq_answers(questions, answers, image_id, upper_lim):
             new_images_train.append(img)
     return (new_questions_train, new_answers_train, new_images_train)
 	
-upper_lim = 3000
+upper_lim = 1000
 questions, answers, image_id = freq_answers(questions, answers, image_id, upper_lim)
 questions, answers, image_id = (list(t) for t in zip(*sorted(zip(questions, answers, image_id))))
 print(len(questions), len(answers),len(image_id))
 
-le = LabelEncoder()
-le.fit(answers)
-pickle.dump(le, open('/home3/181ee103/label_encoder_ml_baseline.pkl','wb'))
-
 batch_size               =      512
 img_dim                  =     4096
-word2vec_dim             =      768
+word2vec_dim             =      300
 num_hidden_nodes_mlp     =     1024
 num_hidden_nodes_lstm    =      512
 num_layers_lstm          =        5
@@ -83,7 +74,7 @@ dropout                  =       0.5
 activation_mlp           =     'tanh'
 num_epochs = 100
 
-img_ids = open('/home3/181ee103/it_project/baseline/ml/coco_vgg_IDMap.txt','rb').read().decode('utf-8').splitlines()
+img_ids = open('/home3/181ee103/it_project/baseline/ta/coco_vgg_IDMap.txt','rb').read().decode('utf-8').splitlines()
 id_map = dict()
 for ids in img_ids:
     id_split = ids.split()
@@ -122,18 +113,18 @@ model = Model(inputs=[image_model.input, language_model.input], outputs=model)
 model.compile(loss='categorical_crossentropy', optimizer='adam') #rmsprop
 model.summary()
 
-def get_questions_tensor_timeseries(questions, timesteps):
+from indicnlp.tokenize import indic_tokenize  
+
+def get_questions_tensor_timeseries(questions, nlp, timesteps):
     assert not isinstance(questions, list)
     nb_samples = len(questions)
-    word_vec_dim = 768
+    word_vec_dim = nlp.get_dimension()
     questions_tensor = np.zeros((nb_samples, timesteps, word_vec_dim))
     for i in range(len(questions)):
-        tokens = indic_tokenizer.encode(questions[i])
-        model_input = indic_tokenizer(questions[i], return_tensors="pt")
-        sent_output = indic_model(**model_input)
+        tokens = indic_tokenize.trivial_tokenize(questions[i])
         for j in range(len(tokens)):
             if j<timesteps:
-                questions_tensor[i,j,:] = sent_output.last_hidden_state[0, j, :].detach().numpy()
+                questions_tensor[i,j,:] = nlp.get_word_vector(tokens[j])
     return questions_tensor
 
 def get_images_matrix(img_coco_ids, img_map, VGGfeatures):
@@ -161,71 +152,36 @@ from sklearn.model_selection import train_test_split
 
 train_questions, test_questions, train_answers, test_answers, train_image_id, test_image_id = train_test_split(questions, answers, image_id, test_size = 0.2, random_state=42)
 
-print("Total number of training samples {} and total number of test samples {} ".format(len(train_image_id), len(test_image_id)))
-
 import tensorflow as tf
 tf.config.run_functions_eagerly(True)
 
-wandb.config = {
-  "learning_rate": 0.001,
-  "epochs": num_epochs,
-  "batch_size": batch_size,
-  "language": "ml"
-}
-
-losses = []
-
-for k in range(num_epochs):
-    print("Epoch Number: ",k+1)
-    progbar = generic_utils.Progbar(len(train_questions))
-    for question_batch, ans_batch, im_batch in zip(grouped(train_questions, batch_size, fillvalue=train_questions[-1]), 
-                                               grouped(train_answers, batch_size, fillvalue=train_answers[-1]),
-                                               grouped(train_image_id, batch_size, fillvalue=train_image_id[-1])):
-        timestep = len(indic_tokenizer.encode((question_batch[-1])))
-        X_ques_batch = get_questions_tensor_timeseries(question_batch, timestep)
-        X_img_batch = get_images_matrix(im_batch, id_map, features)
-        Y_batch = get_answers_sum(ans_batch, le)
-        loss = model.train_on_batch(({'sentence_input' : X_ques_batch, 'image_input' : X_img_batch}), Y_batch)
-        progbar.add(batch_size, values=[('train loss', loss)])
-        losses.append(loss)
-        wandb.log({"loss": loss})
-    wandb.log({"Epoch":k+1})
-
-model.save("/home3/181ee103/ml_baseline.h5")
-#plt.plot(losses)
-#plt.show()
-
-label_encoder = pickle.load(open('/home3/181ee103/label_encoder_ml_baseline.pkl','rb'))
+model = keras.models.load_model("/home3/181ee103/ta_baseline.h5")
+label_encoder = pickle.load(open('/home3/181ee103/label_encoder_ta_baseline.pkl','rb'))
 
 y_pred = []
 batch_size = 512 
 
-widgets = ['Evaluating ', Percentage(), ' ', Bar(marker='#',left='[',right=']'), ' ', ETA()]
-pbar = ProgressBar(widgets=widgets)
-
-for qu_batch,an_batch,im_batch in pbar(zip(grouped(test_questions, batch_size, 
+for qu_batch,an_batch,im_batch in zip(grouped(test_questions, batch_size, 
                                                    fillvalue=test_questions[0]), 
                                            grouped(test_answers, batch_size, 
                                                    fillvalue=test_answers[0]), 
                                            grouped(test_image_id, batch_size, 
-                                                   fillvalue=test_image_id[0]))):   
-    timesteps = len(indic_tokenizer.encode((question_batch[-1])))
-    X_ques_batch = get_questions_tensor_timeseries(qu_batch, timesteps)
-    X_i_batch = get_images_matrix(im_batch, id_map, features)
+                                                   fillvalue=test_image_id[0])):
+    timesteps = len(indic_tokenize.trivial_tokenize(qu_batch[-1]))
+    X_ques_batch = get_questions_tensor_timeseries(qu_batch, nlp, timesteps)
+    X_img_batch = get_images_matrix(im_batch, id_map, features)
     y_predict = model.predict(({'sentence_input' : X_ques_batch, 'image_input' : X_img_batch}))
     y_predict = np.argmax(y_predict,axis=1)
     y_pred.extend(label_encoder.inverse_transform(y_predict))
 
-import pickle
+pickle.dump(y_pred, open('/home3/181ee103/ta_baseline_predictions.pkl','wb'))
 
-with open('/home3/181ee103/ml_baseline_predictions.pkl', 'wb', encoding = "utf8") as f:
-    pickle.dump(y_pred, f)
-
-#with open('ml_predictions.pkl', 'rb', encoding = "utf8") as f:
+#with open('ta_predictions.pkl', 'rb', encoding = "utf8") as f:
 #    mynewlist = pickle.load(f)	
  
 correct_val = 0.0
 total = 0
+
 
 for pred, truth, ques, img in zip(y_pred, test_answers, test_questions, test_image_id):
     t_count = 0
@@ -241,7 +197,5 @@ for pred, truth, ques, img in zip(y_pred, test_answers, test_questions, test_ima
     
 print ("Accuracy: ", round((correct_val/total)*100,2))
 
-wandb.log({"Accuracy":round((correct_val/total)*100,5)})
-
-with open("/home3/181ee103/ml_baseline_acc.txt", "w") as f:
+with open("/home3/181ee103/ta_baseline_acc.txt", "w") as f:
     f.write("%s", str(round((correct_val/total)*100,5)))
