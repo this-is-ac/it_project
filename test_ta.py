@@ -176,12 +176,11 @@ for qu_batch,an_batch,im_batch in zip(grouped(test_questions, batch_size,
 
 pickle.dump(y_pred, open('/home3/181ee103/ta_baseline_predictions.pkl','wb'))
 
-#with open('ta_predictions.pkl', 'rb', encoding = "utf8") as f:
+#with open('/home3/181ee103/ta_baseline_predictions.pkl', 'rb') as f:
 #    mynewlist = pickle.load(f)	
  
 correct_val = 0.0
 total = 0
-
 
 for pred, truth, ques, img in zip(y_pred, test_answers, test_questions, test_image_id):
     t_count = 0
@@ -192,7 +191,6 @@ for pred, truth, ques, img in zip(y_pred, test_answers, test_questions, test_ima
         correct_val +=1
     else:
         correct_val += float(t_count)/3
-
     total +=1
     
 print ("Accuracy: ", round((correct_val/total)*100,2))
