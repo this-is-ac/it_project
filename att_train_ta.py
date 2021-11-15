@@ -82,11 +82,11 @@ def getfreq(answers_str):
 	return max(set(answers), key = answers.count)
 
 def process_question_annotation(subset):
-    with open('/home3/181ee103/it_project/attention/hi/cleaned_answers_v2_hi.txt', 'r', encoding = "utf8") as f:
+    with open('/home3/181ee103/it_project/attention/ta/cleaned_answers_v2_ta.txt', 'r', encoding = "utf8") as f:
       anno = f.readlines()
-    with open('/home3/181ee103/it_project/attention/hi/cleaned_questions_v2_hi.txt', 'r', encoding = "utf8") as f:
+    with open('/home3/181ee103/it_project/attention/ta/cleaned_questions_v2_ta.txt', 'r', encoding = "utf8") as f:
       ques = f.readlines()
-    with open('/home3/181ee103/it_project/attention/hi/cleaned_image_id_v2_hi.txt', 'r', encoding = "utf8") as f:
+    with open('/home3/181ee103/it_project/attention/ta/cleaned_image_id_v2_ta.txt', 'r', encoding = "utf8") as f:
       img_ids = f.readlines()
     
     imdir='%s/COCO_%s_%012d.jpg' ## COCO_train2014_000000291417.jpg
@@ -672,9 +672,9 @@ def model_metric(predictions, truths):
 tr_score = model_metric(y_predict_text_tr, tr_answers)
 
 print('Final Accuracy on the train set is', tr_score)
-wandb.log({"ftrain": tr_score})
+wandb.log({"acc_train": tr_score})
 
 val_score = model_metric(y_predict_text_vl, val_answers)
 
 print('Final Accuracy on the validation set is', val_score)
-wandb.log({"fval": val_score})
+wandb.log({"acc_val": val_score})

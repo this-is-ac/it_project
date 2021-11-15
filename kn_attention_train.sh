@@ -1,6 +1,6 @@
 #!/bin/sh
-#PBS -N vqa_proj_hi
-#PBS -P vqa_hi
+#PBS -N vqa_proj_kn
+#PBS -P vqa_kn
 #PBS -m bea
 #PBS -M adichand20@gmail.com
 #PBS -l select=1:ncpus=6:ngpus=1
@@ -14,4 +14,4 @@ cat $PBS_NODEFILE
 echo "==============================="
 cd $PBS_O_WORKDIR
 
-singularity exec --nv /home3/181ee103/vqa_image ./train_att_hi.sh
+singularity exec --nv /home3/181ee103/vqa_image ./train_att_kn.sh
