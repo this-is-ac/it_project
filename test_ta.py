@@ -24,45 +24,18 @@ from tqdm import tqdm
 from keras.models import load_model
 import matplotlib.pyplot as plt
 
-questions = open('/home3/181ee103/it_project/baseline/ta/cleaned_questions_ta.txt', 'rb').read().decode('utf-8').splitlines()
-answers = open('/home3/181ee103/it_project/baseline/ta/cleaned_answers_ta.txt','rb').read().decode('utf-8').splitlines()
-image_id = open('/home3/181ee103/it_project/baseline/ta/cleaned_image_id_ta.txt','rb').read().decode('utf-8').splitlines()
+test_questions = open('/home3/181ee103/it_project/validation/ta/val_cleaned_questions_ta.txt', 'rb').read().decode('utf-8').splitlines()
+test_answers = open('/home3/181ee103/it_project/validation/ta/val_cleaned_answers_ta.txt','rb').read().decode('utf-8').splitlines()
+test_image_id = open('/home3/181ee103/it_project/validation/ta/val_cleaned_image_id_ta.txt','rb').read().decode('utf-8').splitlines()
 vgg_path = "/home3/181ee103/coco/vgg_feats.mat"
 
 print("Data Successfully Loaded ")
-print("Total number of Questions are {} and Answers are {}".format(len(questions), len(answers)))
-
-print("Sample Data : ")
-print(questions[0])
-print(answers[0])
-print(image_id[0])
+print("Total number of Questions are {} and Answers are {}".format(len(test_questions), len(test_answers)))
 
 nlp = fasttext.load_model('/home3/181ee103/indicnlp.ft.ta.300.bin')
 
 vgg = scipy.io.loadmat(vgg_path)
 features = vgg['feats']
-
-def freq_answers(questions, answers, image_id, upper_lim):
-    freq_ans = defaultdict(int)
-    for ans in answers:
-        freq_ans[ans] +=1
-    
-    sort = sorted(freq_ans.items(), key=operator.itemgetter(1), reverse=True)[0:upper_lim]
-    top_ans, top_freq = zip(*sort)
-    new_answers_train = list()
-    new_questions_train = list()
-    new_images_train = list()
-    for ans, ques, img in zip(answers, questions, image_id):
-        if ans in top_ans:
-            new_answers_train.append(ans)
-            new_questions_train.append(ques)
-            new_images_train.append(img)
-    return (new_questions_train, new_answers_train, new_images_train)
-	
-upper_lim = 1000
-questions, answers, image_id = freq_answers(questions, answers, image_id, upper_lim)
-questions, answers, image_id = (list(t) for t in zip(*sorted(zip(questions, answers, image_id))))
-print(len(questions), len(answers),len(image_id))
 
 batch_size               =      512
 img_dim                  =     4096
@@ -148,15 +121,11 @@ def grouped(iterable, n, fillvalue=None):
     args = [iter(iterable)] * n
     return zip_longest(*args, fillvalue=fillvalue)
 	
-from sklearn.model_selection import train_test_split
-
-train_questions, test_questions, train_answers, test_answers, train_image_id, test_image_id = train_test_split(questions, answers, image_id, test_size = 0.2, random_state=42)
-
 import tensorflow as tf
 tf.config.run_functions_eagerly(True)
 
-model = keras.models.load_model("/home3/181ee103/ta_baseline.h5")
-label_encoder = pickle.load(open('/home3/181ee103/label_encoder_ta_baseline.pkl','rb'))
+model = keras.models.load_model("/home3/181ee103/trained_models/ta/ta_baseline.h5")
+label_encoder = pickle.load(open('/home3/181ee103/trained_models/ta/label_encoder_ta_baseline.pkl','rb'))
 
 y_pred = []
 batch_size = 512 
@@ -196,4 +165,4 @@ for pred, truth, ques, img in zip(y_pred, test_answers, test_questions, test_ima
 print ("Accuracy: ", round((correct_val/total)*100,2))
 
 with open("/home3/181ee103/ta_baseline_acc.txt", "w") as f:
-    f.write("%s", str(round((correct_val/total)*100,5)))
+    f.write(str(round((correct_val/total)*100,5)))
