@@ -14,4 +14,4 @@ cat $PBS_NODEFILE
 echo "==============================="
 cd $PBS_O_WORKDIR
 
-singularity exec --nv /home3/181ee103/vqa_image ./train_att_hi.sh
+singularity exec --nv /home3/181ee103/vqa_image ./test_att_ta.sh
