@@ -29,8 +29,8 @@ test_answers = open('/home3/181ee103/it_project/validation/ta/val_cleaned_answer
 test_image_id = open('/home3/181ee103/it_project/validation/ta/val_cleaned_image_id_ta.txt','rb').read().decode('utf-8').splitlines()
 vgg_path = "/home3/181ee103/coco/vgg_feats.mat"
 
-print("Data Successfully Loaded ")
-print("Total number of Questions are {} and Answers are {}".format(len(test_questions), len(test_answers)))
+with open("/home3/181ee103/loaded.txt", "w") as f:
+    f.write("Data Successfully Loaded")
 
 nlp = fasttext.load_model('/home3/181ee103/indicnlp.ft.ta.300.bin')
 
@@ -53,39 +53,6 @@ for ids in img_ids:
     id_split = ids.split()
     id_map[id_split[0]] = int(id_split[1])
 	
-image_model = Sequential()
-image_model.add(Reshape(input_shape = (4096,), target_shape=(4096,), name = "image"))
-model1 = Model(inputs = image_model.input, outputs = image_model.output)
-model1.summary()
-
-language_model = Sequential()
-language_model.add(LSTM(num_hidden_nodes_lstm, return_sequences=True, input_shape=(None, word2vec_dim), name = "sentence"))
-
-for i in range(num_layers_lstm-2):
-    language_model.add(LSTM(num_hidden_nodes_lstm, return_sequences=True))
-language_model.add(LSTM(num_hidden_nodes_lstm, return_sequences=False))
-
-model2 = Model(language_model.input, language_model.output)
-model2.summary()
-
-combined = concatenate([image_model.output, language_model.output])
-
-model = Dense(num_hidden_nodes_mlp, activation = 'tanh')(combined)
-model = Dropout(0.5)(model)
-
-model = Dense(num_hidden_nodes_mlp, activation = 'tanh')(model)
-model = Dropout(0.5)(model)
-
-model = Dense(num_hidden_nodes_mlp, activation = 'tanh')(model)
-model = Dropout(0.5)(model)
-
-model = Dense(upper_lim)(model)
-model = Activation("softmax")(model)
-
-model = Model(inputs=[image_model.input, language_model.input], outputs=model)
-model.compile(loss='categorical_crossentropy', optimizer='adam') #rmsprop
-model.summary()
-
 from indicnlp.tokenize import indic_tokenize  
 
 def get_questions_tensor_timeseries(questions, nlp, timesteps):
@@ -124,11 +91,17 @@ def grouped(iterable, n, fillvalue=None):
 import tensorflow as tf
 tf.config.run_functions_eagerly(True)
 
+with open("/home3/181ee103/loaded2.txt", "w") as f:
+    f.write("Data Successfully Loaded")
+
 model = keras.models.load_model("/home3/181ee103/trained_models/ta/ta_baseline.h5")
 label_encoder = pickle.load(open('/home3/181ee103/trained_models/ta/label_encoder_ta_baseline.pkl','rb'))
 
 y_pred = []
 batch_size = 512 
+
+with open("/home3/181ee103/loaded3.txt", "w") as f:
+    f.write("Data Successfully Loaded")
 
 for qu_batch,an_batch,im_batch in zip(grouped(test_questions, batch_size, 
                                                    fillvalue=test_questions[0]), 
@@ -145,9 +118,6 @@ for qu_batch,an_batch,im_batch in zip(grouped(test_questions, batch_size,
 
 pickle.dump(y_pred, open('/home3/181ee103/ta_baseline_predictions.pkl','wb'))
 
-#with open('/home3/181ee103/ta_baseline_predictions.pkl', 'rb') as f:
-#    mynewlist = pickle.load(f)	
- 
 correct_val = 0.0
 total = 0
 
