@@ -14,4 +14,4 @@ cat $PBS_NODEFILE
 echo "==============================="
 cd $PBS_O_WORKDIR
 
-singularity exec --nv /home3/181ee103/vqa_image python3 test_ta.py
+singularity exec --nv /home3/181ee103/vqa_image python3 test_ml.py

@@ -6,8 +6,6 @@ import scipy.io
 from sklearn.preprocessing import LabelEncoder
 import pickle
 import fasttext
-
-from tensorflow import keras
 from keras.models import Sequential
 from keras.layers.core import Dense, Dropout, Activation, Reshape
 from keras import Input
@@ -23,13 +21,17 @@ from itertools import zip_longest
 from tqdm import tqdm
 from keras.models import load_model
 import matplotlib.pyplot as plt
+from progressbar import Bar, ETA, Percentage, ProgressBar
 
-test_questions = open('/home3/181ee103/it_project/validation/ta/val_cleaned_questions_ta.txt', 'rb').read().decode('utf-8').splitlines()
-test_answers = open('/home3/181ee103/it_project/validation/ta/val_cleaned_answers_ta.txt','rb').read().decode('utf-8').splitlines()
-test_image_id = open('/home3/181ee103/it_project/validation/ta/val_cleaned_image_id_ta.txt','rb').read().decode('utf-8').splitlines()
+a_test_questions = open('/home3/181ee103/it_project/validation/ml/val_cleaned_questions_ml.txt', 'rb').read().decode('utf-8').splitlines()
+a_test_answers = open('/home3/181ee103/it_project/validation/ml/val_cleaned_answers_ml.txt','rb').read().decode('utf-8').splitlines()
+a_test_image_id = open('/home3/181ee103/it_project/validation/ml/val_cleaned_image_id_ml.txt','rb').read().decode('utf-8').splitlines()
 vgg_path = "/home3/181ee103/coco/vgg_feats.mat"
 
-nlp = fasttext.load_model('/home3/181ee103/indicnlp.ft.ta.300.bin')
+from transformers import AutoModel, AutoTokenizer
+
+indic_tokenizer = AutoTokenizer.from_pretrained("ai4bharat/indic-bert")
+indic_model = AutoModel.from_pretrained("ai4bharat/indic-bert")
 
 vgg = scipy.io.loadmat(vgg_path)
 features = vgg['feats']
@@ -44,7 +46,7 @@ dropout                  =       0.5
 activation_mlp           =     'tanh'
 num_epochs = 100
 
-img_ids = open('/home3/181ee103/it_project/baseline/ta/coco_vgg_IDMap.txt','rb').read().decode('utf-8').splitlines()
+img_ids = open('/home3/181ee103/it_project/baseline/ml/coco_vgg_IDMap.txt','rb').read().decode('utf-8').splitlines()
 id_map = dict()
 for ids in img_ids:
     id_split = ids.split()
@@ -52,16 +54,18 @@ for ids in img_ids:
 	
 from indicnlp.tokenize import indic_tokenize  
 
-def get_questions_tensor_timeseries(questions, nlp, timesteps):
+def get_questions_tensor_timeseries(questions, timesteps):
     assert not isinstance(questions, list)
     nb_samples = len(questions)
-    word_vec_dim = nlp.get_dimension()
+    word_vec_dim = 768
     questions_tensor = np.zeros((nb_samples, timesteps, word_vec_dim))
     for i in range(len(questions)):
-        tokens = indic_tokenize.trivial_tokenize(questions[i])
+        tokens = indic_tokenizer.encode(questions[i])
+        model_input = indic_tokenizer(questions[i], return_tensors="pt")
+        sent_output = indic_model(**model_input)
         for j in range(len(tokens)):
             if j<timesteps:
-                questions_tensor[i,j,:] = nlp.get_word_vector(tokens[j])
+                questions_tensor[i,j,:] = sent_output.last_hidden_state[0, j, :].detach().numpy()
     return questions_tensor
 
 def get_images_matrix(img_coco_ids, img_map, VGGfeatures):
@@ -88,8 +92,18 @@ def grouped(iterable, n, fillvalue=None):
 import tensorflow as tf
 tf.config.run_functions_eagerly(True)
 
-model = keras.models.load_model("/home3/181ee103/trained_models/ta/ta_baseline.h5")
-label_encoder = pickle.load(open('/home3/181ee103/trained_models/ta/label_encoder_ta_baseline.pkl','rb'))
+model = keras.models.load_model("/home3/181ee103/trained_models/ml/ml_baseline.h5")
+label_encoder = pickle.load(open('/home3/181ee103/trained_models/ml/label_encoder_ml_baseline.pkl','rb'))
+
+test_questions = []
+test_answers = []
+test_image_id = []
+
+for i in range(len(a_test_answers)):
+    if a_test_answers[i] in label_encoder.classes_:
+        test_questions.append(a_test_questions[i])
+        test_answers.append(a_test_answers[i])
+        test_image_id.append(a_test_image_id[i])
 
 y_pred = []
 batch_size = 512 
@@ -99,15 +113,16 @@ for qu_batch,an_batch,im_batch in zip(grouped(test_questions, batch_size,
                                            grouped(test_answers, batch_size, 
                                                    fillvalue=test_answers[0]), 
                                            grouped(test_image_id, batch_size, 
-                                                   fillvalue=test_image_id[0])):
-    timesteps = len(indic_tokenize.trivial_tokenize(qu_batch[-1]))
-    X_ques_batch = get_questions_tensor_timeseries(qu_batch, nlp, timesteps)
-    X_img_batch = get_images_matrix(im_batch, id_map, features)
+                                                   fillvalue=test_image_id[0])):   
+    timesteps = len(indic_tokenizer.encode((question_batch[-1])))
+    X_ques_batch = get_questions_tensor_timeseries(qu_batch, timesteps)
+    X_i_batch = get_images_matrix(im_batch, id_map, features)
     y_predict = model.predict(({'sentence_input' : X_ques_batch, 'image_input' : X_img_batch}))
     y_predict = np.argmax(y_predict,axis=1)
     y_pred.extend(label_encoder.inverse_transform(y_predict))
 
-pickle.dump(y_pred, open('/home3/181ee103/ta_baseline_predictions.pkl','wb'))
+pickle.dump(y_pred, open('/home3/181ee103/ml_baseline_predictions.pkl','wb'))
+pickle.dump(test_answers, open('/home3/181ee103/ml_baseline_groundtruths.pkl','wb'))
 
 correct_val = 0.0
 total = 0
@@ -125,5 +140,5 @@ for pred, truth, ques, img in zip(y_pred, test_answers, test_questions, test_ima
     
 print ("Accuracy: ", round((correct_val/total)*100,2))
 
-with open("/home3/181ee103/ta_baseline_acc.txt", "w") as f:
+with open("/home3/181ee103/ml_baseline_acc.txt", "w") as f:
     f.write(str(round((correct_val/total)*100,5)))

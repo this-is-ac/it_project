@@ -24,12 +24,12 @@ from tqdm import tqdm
 from keras.models import load_model
 import matplotlib.pyplot as plt
 
-test_questions = open('/home3/181ee103/it_project/validation/ta/val_cleaned_questions_ta.txt', 'rb').read().decode('utf-8').splitlines()
-test_answers = open('/home3/181ee103/it_project/validation/ta/val_cleaned_answers_ta.txt','rb').read().decode('utf-8').splitlines()
-test_image_id = open('/home3/181ee103/it_project/validation/ta/val_cleaned_image_id_ta.txt','rb').read().decode('utf-8').splitlines()
+a_test_questions = open('/home3/181ee103/it_project/validation/kn/val_cleaned_questions_kn.txt', 'rb').read().decode('utf-8').splitlines()
+a_test_answers = open('/home3/181ee103/it_project/validation/kn/val_cleaned_answers_kn.txt','rb').read().decode('utf-8').splitlines()
+a_test_image_id = open('/home3/181ee103/it_project/validation/kn/val_cleaned_image_id_kn.txt','rb').read().decode('utf-8').splitlines()
 vgg_path = "/home3/181ee103/coco/vgg_feats.mat"
 
-nlp = fasttext.load_model('/home3/181ee103/indicnlp.ft.ta.300.bin')
+nlp = fasttext.load_model('/home3/181ee103/indicnlp.ft.kn.300.bin')
 
 vgg = scipy.io.loadmat(vgg_path)
 features = vgg['feats']
@@ -44,7 +44,7 @@ dropout                  =       0.5
 activation_mlp           =     'tanh'
 num_epochs = 100
 
-img_ids = open('/home3/181ee103/it_project/baseline/ta/coco_vgg_IDMap.txt','rb').read().decode('utf-8').splitlines()
+img_ids = open('/home3/181ee103/it_project/baseline/kn/coco_vgg_IDMap.txt','rb').read().decode('utf-8').splitlines()
 id_map = dict()
 for ids in img_ids:
     id_split = ids.split()
@@ -88,8 +88,18 @@ def grouped(iterable, n, fillvalue=None):
 import tensorflow as tf
 tf.config.run_functions_eagerly(True)
 
-model = keras.models.load_model("/home3/181ee103/trained_models/ta/ta_baseline.h5")
-label_encoder = pickle.load(open('/home3/181ee103/trained_models/ta/label_encoder_ta_baseline.pkl','rb'))
+model = keras.models.load_model("/home3/181ee103/trained_models/kn/kn_baseline.h5")
+label_encoder = pickle.load(open('/home3/181ee103/trained_models/kn/label_encoder_kn_baseline.pkl','rb'))
+
+test_questions = []
+test_answers = []
+test_image_id = []
+
+for i in range(len(a_test_answers)):
+    if a_test_answers[i] in label_encoder.classes_:
+        test_questions.append(a_test_questions[i])
+        test_answers.append(a_test_answers[i])
+        test_image_id.append(a_test_image_id[i])
 
 y_pred = []
 batch_size = 512 
@@ -107,7 +117,8 @@ for qu_batch,an_batch,im_batch in zip(grouped(test_questions, batch_size,
     y_predict = np.argmax(y_predict,axis=1)
     y_pred.extend(label_encoder.inverse_transform(y_predict))
 
-pickle.dump(y_pred, open('/home3/181ee103/ta_baseline_predictions.pkl','wb'))
+pickle.dump(y_pred, open('/home3/181ee103/kn_baseline_predictions.pkl','wb'))
+pickle.dump(test_answers, open('/home3/181ee103/kn_baseline_groundtruths.pkl','wb'))
 
 correct_val = 0.0
 total = 0
@@ -125,5 +136,5 @@ for pred, truth, ques, img in zip(y_pred, test_answers, test_questions, test_ima
     
 print ("Accuracy: ", round((correct_val/total)*100,2))
 
-with open("/home3/181ee103/ta_baseline_acc.txt", "w") as f:
+with open("/home3/181ee103/kn_baseline_acc.txt", "w") as f:
     f.write(str(round((correct_val/total)*100,5)))
