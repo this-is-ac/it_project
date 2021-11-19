@@ -38,7 +38,7 @@ features = vgg['feats']
 
 batch_size               =      512
 img_dim                  =     4096
-word2vec_dim             =      300
+word2vec_dim             =      768
 num_hidden_nodes_mlp     =     1024
 num_hidden_nodes_lstm    =      512
 num_layers_lstm          =        5
